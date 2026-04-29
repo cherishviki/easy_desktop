@@ -100,7 +100,7 @@ function App() {
       <header className="topbar">
         <div>
           <h1>Easy Desktop</h1>
-          <p>{apps.length} 个桌面应用，{configuredCount} 个已绑定快捷键</p>
+          <p>{apps.length} 个应用，{configuredCount} 个已绑定快捷键</p>
         </div>
         <button className="primaryButton" type="button" onClick={refreshApps} disabled={refreshing}>
           <RefreshCw size={18} />
@@ -122,9 +122,9 @@ function App() {
         </div>
 
         {isLoading ? (
-          <div className="emptyState">正在读取桌面应用</div>
+          <div className="emptyState">正在读取应用</div>
         ) : apps.length === 0 ? (
-          <div className="emptyState">当前用户桌面没有 .lnk 或 .url 快捷方式</div>
+          <div className="emptyState">没有找到 .lnk 或 .url 快捷方式</div>
         ) : (
           apps.map((app) => (
             <article className="appRow" key={app.id}>

@@ -67,7 +67,7 @@ function createTray(): void {
       }
     },
     {
-      label: "刷新桌面应用",
+      label: "刷新应用列表",
       click: () => {
         void refreshApps();
       }
