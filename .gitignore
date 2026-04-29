@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vite/
+.npm-cache/
+.electron-cache/
+*.log
+*.local
+Thumbs.db
+Desktop.ini
