@@ -4,21 +4,21 @@ Windows 桌面应用启动器。启动后读取当前 Windows 用户桌面上的
 
 ## 给其他人使用
 
-项目可以打包成一个 Windows 便携版 exe。对方不需要安装 Node.js、npm 或项目依赖，直接运行 exe 即可。
+项目可以打包成一个 Windows 免安装 zip。对方不需要安装 Node.js、npm 或项目依赖，解压后直接运行里面的 `Easy Desktop.exe` 即可。
 
-生成便携版：
+生成免安装 zip：
 
 ```powershell
-npm.cmd run dist:portable
+npm.cmd run dist:zip
 ```
 
 产物位置：
 
 ```text
-release/Easy Desktop-0.1.0-Portable-x64.exe
+release/Easy Desktop-0.1.0-win-x64.zip
 ```
 
-把这个 exe 发给其他 Windows x64 用户即可。应用运行在谁的电脑上，就读取谁自己的桌面和公共桌面：
+把这个 zip 发给其他 Windows x64 用户即可。应用运行在谁的电脑上，就读取谁自己的桌面和公共桌面：
 
 - 当前用户桌面：Electron 的 `app.getPath("desktop")`
 - 当前用户 `Desktop` 目录
@@ -32,7 +32,11 @@ release/Easy Desktop-0.1.0-Portable-x64.exe
 npm.cmd run dist:win
 ```
 
-这会同时生成安装版和便携版。
+如果只想生成单文件便携版 exe，可以执行：
+
+```powershell
+npm.cmd run dist:portable
+```
 
 ## 本地开发
 
