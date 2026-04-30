@@ -1,4 +1,4 @@
-import { app } from "electron";
+import { app, shell } from "electron";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -30,7 +30,7 @@ export function createAppId(filePath: string): string {
 }
 
 export async function scanUserDesktop(shortcuts: Record<string, string>): Promise<DesktopApp[]> {
-  const shortcutPaths = await findShortcutPaths(getWindowsShortcutDirs());
+  const shortcutPaths = await findShortcutPaths(getDesktopShortcutDirs());
   const apps: DesktopApp[] = [];
   const seen = new Set<string>();
 
@@ -44,9 +44,7 @@ export async function scanUserDesktop(shortcuts: Record<string, string>): Promis
     seen.add(dedupeKey);
 
     const id = createAppId(filePath);
-    const iconDataUrl = await app.getFileIcon(filePath, { size: "normal" })
-      .then((icon) => icon.toDataURL())
-      .catch(() => undefined);
+    const iconDataUrl = await getShortcutIconDataUrl(filePath, extension);
     const rawName = path.basename(filePath, extension);
 
     apps.push({
@@ -62,18 +60,14 @@ export async function scanUserDesktop(shortcuts: Record<string, string>): Promis
   return apps.sort((a, b) => a.name.localeCompare(b.name, "zh-Hans-CN"));
 }
 
-function getWindowsShortcutDirs(): string[] {
+function getDesktopShortcutDirs(): string[] {
   const home = app.getPath("home");
-  const appData = app.getPath("appData");
-  const programData = process.env.ProgramData ?? "C:\\ProgramData";
   const publicDir = process.env.PUBLIC ?? path.join(path.parse(home).root, "Users", "Public");
 
   return [
     app.getPath("desktop"),
     path.join(home, "Desktop"),
-    path.join(publicDir, "Desktop"),
-    path.join(appData, "Microsoft", "Windows", "Start Menu", "Programs"),
-    path.join(programData, "Microsoft", "Windows", "Start Menu", "Programs")
+    path.join(publicDir, "Desktop")
   ];
 }
 
@@ -111,4 +105,71 @@ async function collectShortcuts(dir: string): Promise<string[]> {
 function localizeAppName(name: string): string {
   const normalized = name.replace(/[_-]+/g, " ").trim().toLowerCase();
   return COMMON_CHINESE_NAMES.get(normalized) ?? name;
+}
+
+async function getShortcutIconDataUrl(filePath: string, extension: string): Promise<string | undefined> {
+  const iconSources = await getIconSources(filePath, extension);
+
+  for (const iconSource of iconSources) {
+    const iconDataUrl = await app.getFileIcon(iconSource, { size: "normal" })
+      .then((icon) => icon.toDataURL())
+      .catch(() => undefined);
+
+    if (iconDataUrl) {
+      return iconDataUrl;
+    }
+  }
+
+  return undefined;
+}
+
+async function getIconSources(filePath: string, extension: string): Promise<string[]> {
+  const sources: string[] = [];
+
+  if (extension === ".lnk") {
+    const shortcut = readWindowsShortcut(filePath);
+    if (shortcut?.icon) {
+      sources.push(expandEnvironmentVariables(shortcut.icon));
+    }
+    if (shortcut?.target) {
+      sources.push(expandEnvironmentVariables(shortcut.target));
+    }
+  }
+
+  if (extension === ".url") {
+    const iconFile = await readInternetShortcutIcon(filePath);
+    if (iconFile) {
+      sources.push(expandEnvironmentVariables(iconFile));
+    }
+  }
+
+  sources.push(filePath);
+
+  return [...new Set(sources.filter(Boolean))];
+}
+
+function readWindowsShortcut(filePath: string): Electron.ShortcutDetails | undefined {
+  if (process.platform !== "win32") {
+    return undefined;
+  }
+
+  try {
+    return shell.readShortcutLink(filePath);
+  } catch {
+    return undefined;
+  }
+}
+
+async function readInternetShortcutIcon(filePath: string): Promise<string | undefined> {
+  const content = await fs.readFile(filePath, "utf8").catch(() => "");
+  const iconFile = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.toLowerCase().startsWith("iconfile="));
+
+  return iconFile?.slice("IconFile=".length).trim() || undefined;
+}
+
+function expandEnvironmentVariables(value: string): string {
+  return value.replace(/%([^%]+)%/g, (match, name: string) => process.env[name] ?? match);
 }
