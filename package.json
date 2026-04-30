@@ -10,7 +10,8 @@
     "dev:renderer": "vite --host 127.0.0.1",
     "dev:electron": "wait-on tcp:5173 dist/main/main/main.js && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
     "build": "tsc -p tsconfig.main.json && vite build",
-    "dist:win": "npm run build && electron-builder --win nsis",
+    "dist:win": "npm run build && electron-builder --win nsis portable",
+    "dist:portable": "npm run build && electron-builder --win portable",
     "start": "npm run build && electron .",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.main.json"
   },
@@ -34,6 +35,12 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -45,6 +52,9 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Easy Desktop",
       "artifactName": "${productName}-${version}-Setup-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-Portable-${arch}.${ext}"
     }
   },
   "dependencies": {

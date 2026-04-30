@@ -1,6 +1,38 @@
 # Easy Desktop
 
-Windows 桌面应用启动器。启动后读取当前用户桌面上的 `.lnk` 快捷方式和文件夹，在页面中配置多字符快捷键；工具在后台监听键盘，输入 `/快捷键` 后打开对应应用或文件夹。
+Windows 桌面应用启动器。启动后读取当前 Windows 用户桌面上的 `.lnk` 快捷方式和文件夹，在页面中配置多字符快捷键；工具会在后台监听键盘，输入 `/快捷键` 后打开对应应用或文件夹。
+
+## 给其他人使用
+
+项目可以打包成一个 Windows 便携版 exe。对方不需要安装 Node.js、npm 或项目依赖，直接运行 exe 即可。
+
+生成便携版：
+
+```powershell
+npm.cmd run dist:portable
+```
+
+产物位置：
+
+```text
+release/Easy Desktop-0.1.0-Portable-x64.exe
+```
+
+把这个 exe 发给其他 Windows x64 用户即可。应用运行在谁的电脑上，就读取谁自己的桌面和公共桌面：
+
+- 当前用户桌面：Electron 的 `app.getPath("desktop")`
+- 当前用户 `Desktop` 目录
+- 公共桌面：`C:\Users\Public\Desktop`
+
+快捷键配置也保存在运行者自己的用户数据目录，不会读取开发者电脑上的配置。
+
+如需安装版，也可以执行：
+
+```powershell
+npm.cmd run dist:win
+```
+
+这会同时生成安装版和便携版。
 
 ## 本地开发
 
