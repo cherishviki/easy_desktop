@@ -5,6 +5,10 @@ import path from "node:path";
 import type { DesktopApp } from "../shared/types";
 
 const DESKTOP_EXTENSIONS = new Set([".lnk", ".url"]);
+type DesktopEntry = {
+  path: string;
+  type: DesktopApp["extension"];
+};
 const COMMON_CHINESE_NAMES = new Map<string, string>([
   ["wechat", "微信"],
   ["weixin", "微信"],
@@ -30,12 +34,12 @@ export function createAppId(filePath: string): string {
 }
 
 export async function scanUserDesktop(shortcuts: Record<string, string>): Promise<DesktopApp[]> {
-  const shortcutPaths = await findShortcutPaths(getDesktopShortcutDirs());
+  const desktopEntries = await findDesktopEntries(getDesktopShortcutDirs());
   const apps: DesktopApp[] = [];
   const seen = new Set<string>();
 
-  for (const filePath of shortcutPaths) {
-    const extension = path.extname(filePath).toLowerCase();
+  for (const entry of desktopEntries) {
+    const filePath = entry.path;
     const dedupeKey = filePath.toLowerCase();
     if (seen.has(dedupeKey)) {
       continue;
@@ -44,14 +48,14 @@ export async function scanUserDesktop(shortcuts: Record<string, string>): Promis
     seen.add(dedupeKey);
 
     const id = createAppId(filePath);
-    const iconDataUrl = await getShortcutIconDataUrl(filePath, extension);
-    const rawName = path.basename(filePath, extension);
+    const iconDataUrl = await getDesktopEntryIconDataUrl(filePath, entry.type);
+    const rawName = path.basename(filePath, entry.type === "folder" ? undefined : entry.type);
 
     apps.push({
       id,
       name: localizeAppName(rawName),
       path: filePath,
-      extension: extension as DesktopApp["extension"],
+      extension: entry.type,
       iconDataUrl,
       shortcut: shortcuts[id]
     });
@@ -71,21 +75,21 @@ function getDesktopShortcutDirs(): string[] {
   ];
 }
 
-async function findShortcutPaths(dirs: string[]): Promise<string[]> {
+async function findDesktopEntries(dirs: string[]): Promise<DesktopEntry[]> {
   const uniqueDirs = [...new Set(dirs.map((dir) => path.normalize(dir)))];
-  const shortcuts = await Promise.all(uniqueDirs.map((dir) => collectShortcuts(dir)));
-  return shortcuts.flat();
+  const entries = await Promise.all(uniqueDirs.map((dir) => collectDesktopEntries(dir)));
+  return entries.flat();
 }
 
-async function collectShortcuts(dir: string): Promise<string[]> {
+async function collectDesktopEntries(dir: string): Promise<DesktopEntry[]> {
   const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
-  const shortcuts: string[] = [];
+  const desktopEntries: DesktopEntry[] = [];
 
   for (const entry of entries) {
     const filePath = path.join(dir, entry.name);
 
     if (entry.isDirectory()) {
-      shortcuts.push(...await collectShortcuts(filePath));
+      desktopEntries.push({ path: filePath, type: "folder" });
       continue;
     }
 
@@ -95,11 +99,11 @@ async function collectShortcuts(dir: string): Promise<string[]> {
 
     const extension = path.extname(entry.name).toLowerCase();
     if (DESKTOP_EXTENSIONS.has(extension)) {
-      shortcuts.push(filePath);
+      desktopEntries.push({ path: filePath, type: extension as DesktopApp["extension"] });
     }
   }
 
-  return shortcuts;
+  return desktopEntries;
 }
 
 function localizeAppName(name: string): string {
@@ -107,12 +111,12 @@ function localizeAppName(name: string): string {
   return COMMON_CHINESE_NAMES.get(normalized) ?? name;
 }
 
-async function getShortcutIconDataUrl(filePath: string, extension: string): Promise<string | undefined> {
-  const iconSources = await getIconSources(filePath, extension);
+async function getDesktopEntryIconDataUrl(filePath: string, entryType: DesktopApp["extension"]): Promise<string | undefined> {
+  const iconSources = await getIconSources(filePath, entryType);
 
   for (const iconSource of iconSources) {
     const iconDataUrl = await app.getFileIcon(iconSource, { size: "normal" })
-      .then((icon) => icon.toDataURL())
+      .then((icon) => icon.isEmpty() ? undefined : icon.toDataURL())
       .catch(() => undefined);
 
     if (iconDataUrl) {
@@ -123,20 +127,20 @@ async function getShortcutIconDataUrl(filePath: string, extension: string): Prom
   return undefined;
 }
 
-async function getIconSources(filePath: string, extension: string): Promise<string[]> {
+async function getIconSources(filePath: string, entryType: DesktopApp["extension"]): Promise<string[]> {
   const sources: string[] = [];
 
-  if (extension === ".lnk") {
+  if (entryType === ".lnk") {
     const shortcut = readWindowsShortcut(filePath);
     if (shortcut?.icon) {
-      sources.push(expandEnvironmentVariables(shortcut.icon));
+      sources.push(resolveIconPath(shortcut.icon, shortcut.cwd || path.dirname(filePath)));
     }
     if (shortcut?.target) {
       sources.push(expandEnvironmentVariables(shortcut.target));
     }
   }
 
-  if (extension === ".url") {
+  if (entryType === ".url") {
     const iconFile = await readInternetShortcutIcon(filePath);
     if (iconFile) {
       sources.push(expandEnvironmentVariables(iconFile));
@@ -171,5 +175,13 @@ async function readInternetShortcutIcon(filePath: string): Promise<string | unde
 }
 
 function expandEnvironmentVariables(value: string): string {
-  return value.replace(/%([^%]+)%/g, (match, name: string) => process.env[name] ?? match);
+  return value.replace(/%([^%]+)%/g, (match, name: string) => {
+    const envKey = Object.keys(process.env).find((key) => key.toLowerCase() === name.toLowerCase());
+    return envKey ? process.env[envKey] ?? match : match;
+  });
+}
+
+function resolveIconPath(iconPath: string, baseDir: string): string {
+  const expandedPath = expandEnvironmentVariables(iconPath);
+  return path.isAbsolute(expandedPath) ? expandedPath : path.resolve(baseDir, expandedPath);
 }

@@ -2,7 +2,7 @@ export type DesktopApp = {
   id: string;
   name: string;
   path: string;
-  extension: ".lnk" | ".url";
+  extension: ".lnk" | ".url" | "folder";
   iconDataUrl?: string;
   shortcut?: string;
 };
