@@ -124,7 +124,7 @@ function App() {
         {isLoading ? (
           <div className="emptyState">正在读取应用</div>
         ) : apps.length === 0 ? (
-          <div className="emptyState">没有找到 .lnk 或 .url 快捷方式</div>
+          <div className="emptyState">没有找到 .lnk 快捷方式或文件夹</div>
         ) : (
           apps.map((app) => (
             <article className="appRow" key={app.id}>

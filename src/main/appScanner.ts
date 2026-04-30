@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import type { DesktopApp } from "../shared/types";
 
-const DESKTOP_EXTENSIONS = new Set([".lnk", ".url"]);
+const DESKTOP_EXTENSIONS = new Set([".lnk"]);
 type DesktopEntry = {
   path: string;
   type: DesktopApp["extension"];
@@ -140,13 +140,6 @@ async function getIconSources(filePath: string, entryType: DesktopApp["extension
     }
   }
 
-  if (entryType === ".url") {
-    const iconFile = await readInternetShortcutIcon(filePath);
-    if (iconFile) {
-      sources.push(expandEnvironmentVariables(iconFile));
-    }
-  }
-
   sources.push(filePath);
 
   return [...new Set(sources.filter(Boolean))];
@@ -162,16 +155,6 @@ function readWindowsShortcut(filePath: string): Electron.ShortcutDetails | undef
   } catch {
     return undefined;
   }
-}
-
-async function readInternetShortcutIcon(filePath: string): Promise<string | undefined> {
-  const content = await fs.readFile(filePath, "utf8").catch(() => "");
-  const iconFile = content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find((line) => line.toLowerCase().startsWith("iconfile="));
-
-  return iconFile?.slice("IconFile=".length).trim() || undefined;
 }
 
 function expandEnvironmentVariables(value: string): string {
