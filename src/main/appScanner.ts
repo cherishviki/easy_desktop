@@ -8,6 +8,7 @@ const DESKTOP_EXTENSIONS = new Set([".lnk"]);
 type DesktopEntry = {
   path: string;
   type: DesktopApp["extension"];
+  source: DesktopApp["source"];
 };
 const COMMON_CHINESE_NAMES = new Map<string, string>([
   ["wechat", "微信"],
@@ -33,12 +34,18 @@ export function createAppId(filePath: string): string {
   return crypto.createHash("sha1").update(filePath.toLowerCase()).digest("hex");
 }
 
-export async function scanUserDesktop(shortcuts: Record<string, string>): Promise<DesktopApp[]> {
+export async function scanUserDesktop(
+  shortcuts: Record<string, string>,
+  customPaths: string[],
+  hiddenAppIds: string[]
+): Promise<DesktopApp[]> {
   const desktopEntries = await findDesktopEntries(getDesktopShortcutDirs());
+  const customEntries = await collectCustomEntries(customPaths);
   const apps: DesktopApp[] = [];
   const seen = new Set<string>();
+  const hidden = new Set(hiddenAppIds);
 
-  for (const entry of desktopEntries) {
+  for (const entry of [...desktopEntries, ...customEntries]) {
     const filePath = entry.path;
     const dedupeKey = filePath.toLowerCase();
     if (seen.has(dedupeKey)) {
@@ -48,6 +55,10 @@ export async function scanUserDesktop(shortcuts: Record<string, string>): Promis
     seen.add(dedupeKey);
 
     const id = createAppId(filePath);
+    if (hidden.has(id)) {
+      continue;
+    }
+
     const iconDataUrl = await getDesktopEntryIconDataUrl(filePath, entry.type);
     const rawName = path.basename(filePath, entry.type === "folder" ? undefined : entry.type);
 
@@ -56,6 +67,7 @@ export async function scanUserDesktop(shortcuts: Record<string, string>): Promis
       name: localizeAppName(rawName),
       path: filePath,
       extension: entry.type,
+      source: entry.source,
       iconDataUrl,
       shortcut: shortcuts[id]
     });
@@ -89,7 +101,7 @@ async function collectDesktopEntries(dir: string): Promise<DesktopEntry[]> {
     const filePath = path.join(dir, entry.name);
 
     if (entry.isDirectory()) {
-      desktopEntries.push({ path: filePath, type: "folder" });
+      desktopEntries.push({ path: filePath, type: "folder", source: "desktop" });
       continue;
     }
 
@@ -99,11 +111,35 @@ async function collectDesktopEntries(dir: string): Promise<DesktopEntry[]> {
 
     const extension = path.extname(entry.name).toLowerCase();
     if (DESKTOP_EXTENSIONS.has(extension)) {
-      desktopEntries.push({ path: filePath, type: extension as DesktopApp["extension"] });
+      desktopEntries.push({ path: filePath, type: extension as DesktopApp["extension"], source: "desktop" });
     }
   }
 
   return desktopEntries;
+}
+
+async function collectCustomEntries(customPaths: string[]): Promise<DesktopEntry[]> {
+  const entries = await Promise.all(customPaths.map((item) => createCustomEntry(item)));
+  return entries.filter((entry): entry is DesktopEntry => Boolean(entry));
+}
+
+async function createCustomEntry(filePath: string): Promise<DesktopEntry | null> {
+  const stat = await fs.stat(filePath).catch(() => undefined);
+  if (!stat) {
+    return null;
+  }
+
+  if (stat.isDirectory()) {
+    return { path: filePath, type: "folder", source: "custom" };
+  }
+
+  if (!stat.isFile()) {
+    return null;
+  }
+
+  const extension = path.extname(filePath).toLowerCase();
+  const type = extension === ".lnk" || extension === ".exe" ? extension : "file";
+  return { path: filePath, type, source: "custom" };
 }
 
 function localizeAppName(name: string): string {

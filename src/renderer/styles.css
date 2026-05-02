@@ -63,7 +63,14 @@ button:disabled {
   font-size: 14px;
 }
 
+.topbarActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .primaryButton,
+.secondaryButton,
 .actions button {
   display: inline-flex;
   align-items: center;
@@ -78,6 +85,14 @@ button:disabled {
   padding: 0 16px;
   color: #ffffff;
   background: #126c73;
+}
+
+.secondaryButton {
+  min-width: 118px;
+  padding: 0 16px;
+  color: #23313a;
+  background: #ffffff;
+  border: 1px solid rgba(97, 110, 124, 0.24);
 }
 
 .hintBar {
@@ -115,7 +130,7 @@ button:disabled {
 .tableHeader,
 .appRow {
   display: grid;
-  grid-template-columns: minmax(190px, 1.3fr) minmax(180px, 0.85fr) minmax(220px, 1.4fr) 132px;
+  grid-template-columns: minmax(190px, 1.3fr) minmax(180px, 0.85fr) minmax(220px, 1.4fr) 176px;
   gap: 16px;
   align-items: center;
 }
@@ -240,6 +255,20 @@ button:disabled {
 @media (max-width: 820px) {
   .shell {
     width: calc(100vw - 28px);
+  }
+
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .topbarActions {
+    width: 100%;
+  }
+
+  .primaryButton,
+  .secondaryButton {
+    flex: 1;
   }
 
   .tableHeader {

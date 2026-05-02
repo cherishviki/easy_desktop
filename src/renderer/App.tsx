@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Eraser, ExternalLink, FolderPlus, RefreshCw, Trash2 } from "lucide-react";
 import { createRoot } from "react-dom/client";
 import type { DesktopApp } from "../shared/types";
 import "./styles.css";
@@ -13,6 +13,7 @@ function App() {
   const [errors, setErrors] = useState<RowErrors>({});
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     void loadApps();
@@ -41,6 +42,14 @@ function App() {
     syncApps(nextApps);
     setErrors({});
     setRefreshing(false);
+  }
+
+  async function addApp() {
+    setAdding(true);
+    const nextApps = await window.launcher.addApp();
+    syncApps(nextApps);
+    setErrors({});
+    setAdding(false);
   }
 
   async function saveShortcut(app: DesktopApp) {
@@ -78,6 +87,25 @@ function App() {
     syncApps(result.apps);
   }
 
+  async function removeApp(app: DesktopApp) {
+    const message = app.source === "custom"
+      ? `从 Easy Desktop 移除“${app.name}”？`
+      : `从 Easy Desktop 隐藏“${app.name}”？不会删除电脑上的文件。`;
+
+    if (!window.confirm(message)) {
+      return;
+    }
+
+    const result = await window.launcher.removeApp(app.id);
+
+    if (!result.ok) {
+      setErrors((current) => ({ ...current, [app.id]: result.message }));
+      return;
+    }
+
+    syncApps(result.apps);
+  }
+
   async function openApp(app: DesktopApp) {
     setErrors((current) => {
       const next = { ...current };
@@ -102,10 +130,16 @@ function App() {
           <h1>Easy Desktop</h1>
           <p>{apps.length} 个应用，{configuredCount} 个已绑定快捷键</p>
         </div>
-        <button className="primaryButton" type="button" onClick={refreshApps} disabled={refreshing}>
-          <RefreshCw size={18} />
-          {refreshing ? "刷新中" : "刷新"}
-        </button>
+        <div className="topbarActions">
+          <button className="secondaryButton" type="button" onClick={addApp} disabled={adding}>
+            <FolderPlus size={18} />
+            {adding ? "选择中" : "添加应用"}
+          </button>
+          <button className="primaryButton" type="button" onClick={refreshApps} disabled={refreshing}>
+            <RefreshCw size={18} />
+            {refreshing ? "刷新中" : "刷新"}
+          </button>
+        </div>
       </header>
 
       <section className="hintBar">
@@ -124,7 +158,7 @@ function App() {
         {isLoading ? (
           <div className="emptyState">正在读取应用</div>
         ) : apps.length === 0 ? (
-          <div className="emptyState">没有找到 .lnk 快捷方式或文件夹</div>
+          <div className="emptyState">没有应用，点击右上角添加</div>
         ) : (
           apps.map((app) => (
             <article className="appRow" key={app.id}>
@@ -136,7 +170,7 @@ function App() {
                 )}
                 <div>
                   <strong>{app.name}</strong>
-                  <small>{app.extension}</small>
+                  <small>{app.source === "custom" ? "手动添加" : "桌面扫描"} · {app.extension}</small>
                 </div>
               </div>
 
@@ -163,11 +197,14 @@ function App() {
                 <button type="button" title="保存快捷键" onClick={() => saveShortcut(app)}>
                   <Check size={17} />
                 </button>
-                <button type="button" title="清除快捷键" onClick={() => clearShortcut(app)}>
-                  <Trash2 size={17} />
+                <button type="button" title="清空快捷键" onClick={() => clearShortcut(app)}>
+                  <Eraser size={17} />
                 </button>
                 <button type="button" title="打开应用" onClick={() => openApp(app)}>
                   <ExternalLink size={17} />
+                </button>
+                <button type="button" title="从页面移除" onClick={() => removeApp(app)}>
+                  <Trash2 size={17} />
                 </button>
               </div>
             </article>

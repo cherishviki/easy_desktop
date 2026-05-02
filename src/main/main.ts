@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  dialog,
   ipcMain,
   Menu,
   nativeImage,
@@ -9,9 +10,10 @@ import {
 } from "electron";
 import path from "node:path";
 import type { DesktopApp, ShortcutResult, ShortcutUpdate } from "../shared/types";
-import { scanUserDesktop } from "./appScanner";
+import { createAppId, scanUserDesktop } from "./appScanner";
 import { findDuplicate, ShortcutStore, validateShortcut } from "./shortcutStore";
 import { GlobalShortcutService } from "./globalShortcuts";
+import { UserAppStore } from "./userAppStore";
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -19,6 +21,7 @@ let isQuitting = false;
 let appsCache: DesktopApp[] = [];
 
 const store = new ShortcutStore();
+const userAppStore = new UserAppStore();
 const globalShortcuts = new GlobalShortcutService();
 
 function createWindow(): void {
@@ -89,7 +92,8 @@ function createTray(): void {
 }
 
 async function refreshApps(): Promise<DesktopApp[]> {
-  appsCache = await scanUserDesktop(store.getAll());
+  const userApps = userAppStore.getAll();
+  appsCache = await scanUserDesktop(store.getAll(), userApps.customPaths, userApps.hiddenAppIds);
   globalShortcuts.setApps(appsCache);
   return appsCache;
 }
@@ -98,6 +102,46 @@ function registerIpc(): void {
   ipcMain.handle("apps:list", async () => appsCache);
 
   ipcMain.handle("apps:refresh", async () => refreshApps());
+
+  ipcMain.handle("apps:add", async (): Promise<DesktopApp[]> => {
+    const dialogOptions: Electron.OpenDialogOptions = {
+      title: "选择要添加的应用或文件夹",
+      buttonLabel: "添加",
+      properties: ["openFile", "openDirectory"],
+      filters: [
+        { name: "应用和快捷方式", extensions: ["exe", "lnk"] },
+        { name: "所有文件", extensions: ["*"] }
+      ]
+    };
+    const result = mainWindow
+      ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return appsCache;
+    }
+
+    const selectedPath = result.filePaths[0];
+    await userAppStore.addCustomPath(selectedPath);
+    await userAppStore.unhideApp(createAppId(selectedPath));
+    return refreshApps();
+  });
+
+  ipcMain.handle("apps:remove", async (_event, appId: string): Promise<ShortcutResult> => {
+    const desktopApp = appsCache.find((item) => item.id === appId);
+    if (!desktopApp) {
+      return { ok: false, message: "找不到应用" };
+    }
+
+    await store.clear(appId);
+    if (desktopApp.source === "custom") {
+      await userAppStore.removeCustomPath(desktopApp.path);
+    } else {
+      await userAppStore.hideApp(appId);
+    }
+
+    return { ok: true, apps: await refreshApps() };
+  });
 
   ipcMain.handle("apps:open", async (_event, appId: string) => {
     const desktopApp = appsCache.find((item) => item.id === appId);
@@ -139,6 +183,7 @@ function registerIpc(): void {
 
 app.whenReady().then(async () => {
   store.load();
+  userAppStore.load();
   registerIpc();
   await refreshApps();
   createWindow();
