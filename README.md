@@ -1,18 +1,31 @@
 # Easy Desktop
 
-Windows 桌面应用启动器。启动后会读取当前 Windows 用户桌面上的 `.lnk` 快捷方式和文件夹，也支持用户手动添加 `.exe` 应用、快捷方式、普通文件或文件夹。用户可以在页面中配置多字符快捷键；工具会在后台监听键盘，输入 `/快捷键` 后打开对应应用或文件夹。
+Easy Desktop 是一个 Windows 桌面应用启动器。它会读取当前 Windows 用户桌面上的 `.lnk` 快捷方式和文件夹，也支持手动添加 `.exe` 应用、快捷方式、普通文件或文件夹。
 
-## 主要功能
+配置好快捷键后，在任意输入位置键入 `/快捷键`，Easy Desktop 会在后台打开对应应用或文件夹，并清除刚刚输入的触发文本。
+
+## 功能
 
 - 自动扫描当前用户桌面、用户 `Desktop` 目录和公共桌面。
-- 点击“添加应用”后，可以通过系统选择框添加 `.exe`、`.lnk`、普通文件或文件夹。
-- 点击“从页面移除”可以让列表更简洁；手动添加的应用会从 Easy Desktop 移除，桌面扫描到的应用只会被隐藏，不会删除电脑上的真实文件。
-- “开机自启动”开关会写入系统登录启动项；开启后下次登录 Windows 时会自动启动到托盘，并继续监听快捷键。
-- 快捷键、手动应用、自启动等配置保存到运行者自己的系统环境中。
+- 支持手动添加 `.exe`、`.lnk`、普通文件或文件夹。
+- 支持为应用配置多字符快捷键。
+- 支持从页面移除应用，让列表保持简洁。
+- 支持开机自启动；开启后下次登录 Windows 时会自动启动到托盘，并继续监听快捷键。
+- 快捷键、手动添加应用、隐藏应用和自启动状态都保存在当前运行者自己的电脑上。
 
-## 给其他人使用
+## 使用方式
 
-项目可以打包成一个 Windows 免安装 zip。对方不需要安装 Node.js、npm 或项目依赖，解压后直接运行里面的 `Easy Desktop.exe` 即可。
+1. 启动 `Easy Desktop.exe`。
+2. 在页面中为应用填写快捷键并保存。
+3. 如需添加不在桌面上的应用，点击“添加应用”，选择应用所在位置。
+4. 如需隐藏不常用应用，点击对应应用的移除按钮。
+5. 如需登录 Windows 后自动运行，打开“开机自启动”开关。
+
+快捷键示例：为微信设置 `wx` 后，在任意输入位置输入 `/wx` 即可打开微信。
+
+## 分发版本
+
+项目可以打包成 Windows 免安装 zip。使用者不需要安装 Node.js、npm 或项目依赖，解压后直接运行里面的 `Easy Desktop.exe`。
 
 生成免安装 zip：
 
@@ -26,43 +39,46 @@ npm.cmd run dist:zip
 release/Easy Desktop-0.1.0-win-x64.zip
 ```
 
-把这个 zip 发给其他 Windows x64 用户即可。应用运行在谁的电脑上，就读取谁自己的桌面和公共桌面：
-
-- 当前用户桌面：Electron 的 `app.getPath("desktop")`
-- 当前用户 `Desktop` 目录
-- 公共桌面：`C:\Users\Public\Desktop`
-
-快捷键、手动添加应用、隐藏应用和开机自启动状态都属于运行者自己的配置，不会读取开发者电脑上的配置。
-
-如需安装版，也可以执行：
+如需安装版：
 
 ```powershell
 npm.cmd run dist:win
 ```
 
-如果只想生成单文件便携版 exe，可以执行：
+如需单文件便携版 exe：
 
 ```powershell
 npm.cmd run dist:portable
 ```
 
+## 配置保存位置
+
+应用运行在谁的电脑上，就读取谁自己的桌面和公共桌面：
+
+- 当前用户桌面：Electron 的 `app.getPath("desktop")`
+- 当前用户 `Desktop` 目录
+- 公共桌面：`C:\Users\Public\Desktop`
+
+快捷键、手动添加应用、隐藏应用和开机自启动状态都属于当前运行者自己的配置，不会读取其他电脑上的配置。
+
 ## 本地开发
 
-当前项目不使用全局 npm 包。依赖安装在项目本地 `node_modules`，npm 缓存可放在项目内：
+安装依赖：
 
 ```powershell
-$env:npm_config_cache='C:\Users\cherish\Desktop\projects\easy_desktop\.npm-cache'
-$env:ELECTRON_CACHE='C:\Users\cherish\Desktop\projects\easy_desktop\.electron-cache'
+npm.cmd install
+```
+
+如果网络环境需要使用 Electron 镜像，可以在安装或重建前设置镜像：
+
+```powershell
 $env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'
 npm.cmd install
 ```
 
-如果之前为了绕过沙箱执行过 `npm.cmd install --ignore-scripts`，需要在普通 PowerShell 或管理员 PowerShell 里重新执行一次：
+如果之前执行过 `npm.cmd install --ignore-scripts`，需要重新构建原生依赖：
 
 ```powershell
-$env:npm_config_cache='C:\Users\cherish\Desktop\projects\easy_desktop\.npm-cache'
-$env:ELECTRON_CACHE='C:\Users\cherish\Desktop\projects\easy_desktop\.electron-cache'
-$env:ELECTRON_MIRROR='https://npmmirror.com/mirrors/electron/'
 npm.cmd rebuild esbuild electron uiohook-napi
 ```
 
@@ -84,5 +100,6 @@ npm.cmd run build
 - 支持多个字符。
 - 只允许 ASCII 可打印字符。
 - 不允许包含 `/`。
+- 不允许包含空格。
 - 不允许重复。
 - 输入 `/快捷键` 命中后会打开应用，并发送 Backspace 清除触发文本。
