@@ -14,9 +14,11 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [startupEnabled, setStartupEnabled] = useState(false);
+  const [startupSaving, setStartupSaving] = useState(false);
 
   useEffect(() => {
-    void loadApps();
+    void loadInitialState();
   }, []);
 
   const configuredCount = useMemo(
@@ -24,10 +26,14 @@ function App() {
     [apps]
   );
 
-  async function loadApps() {
+  async function loadInitialState() {
     setIsLoading(true);
-    const nextApps = await window.launcher.listApps();
+    const [nextApps, startup] = await Promise.all([
+      window.launcher.listApps(),
+      window.launcher.getStartupEnabled()
+    ]);
     syncApps(nextApps);
+    setStartupEnabled(startup);
     setIsLoading(false);
   }
 
@@ -50,6 +56,13 @@ function App() {
     syncApps(nextApps);
     setErrors({});
     setAdding(false);
+  }
+
+  async function toggleStartup(enabled: boolean) {
+    setStartupSaving(true);
+    const actualEnabled = await window.launcher.setStartupEnabled(enabled);
+    setStartupEnabled(actualEnabled);
+    setStartupSaving(false);
   }
 
   async function saveShortcut(app: DesktopApp) {
@@ -131,6 +144,17 @@ function App() {
           <p>{apps.length} 个应用，{configuredCount} 个已绑定快捷键</p>
         </div>
         <div className="topbarActions">
+          <label className="startupToggle">
+            <input
+              type="checkbox"
+              checked={startupEnabled}
+              disabled={startupSaving}
+              onChange={(event) => {
+                void toggleStartup(event.target.checked);
+              }}
+            />
+            <span>开机自启动</span>
+          </label>
           <button className="secondaryButton" type="button" onClick={addApp} disabled={adding}>
             <FolderPlus size={18} />
             {adding ? "选择中" : "添加应用"}

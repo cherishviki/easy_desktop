@@ -69,6 +69,26 @@ button:disabled {
   gap: 10px;
 }
 
+.startupToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px;
+  color: #334155;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(97, 110, 124, 0.22);
+  border-radius: 8px;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.startupToggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #126c73;
+}
+
 .primaryButton,
 .secondaryButton,
 .actions button {
@@ -264,11 +284,16 @@ button:disabled {
 
   .topbarActions {
     width: 100%;
+    flex-wrap: wrap;
   }
 
   .primaryButton,
   .secondaryButton {
     flex: 1;
+  }
+
+  .startupToggle {
+    width: 100%;
   }
 
   .tableHeader {

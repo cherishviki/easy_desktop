@@ -20,6 +20,7 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let appsCache: DesktopApp[] = [];
 
+const START_HIDDEN_ARG = "--hidden";
 const store = new ShortcutStore();
 const userAppStore = new UserAppStore();
 const globalShortcuts = new GlobalShortcutService();
@@ -32,6 +33,7 @@ function createWindow(): void {
     minHeight: 520,
     title: "Easy Desktop",
     backgroundColor: "#f7f4ed",
+    show: !shouldStartHidden(),
     webPreferences: {
       preload: path.join(__dirname, "../preload/preload.js"),
       contextIsolation: true,
@@ -51,6 +53,12 @@ function createWindow(): void {
     void mainWindow.loadURL(devServerUrl);
   } else {
     void mainWindow.loadFile(path.join(__dirname, "../../renderer/index.html"));
+  }
+
+  if (shouldStartHidden()) {
+    mainWindow.once("ready-to-show", () => {
+      mainWindow?.hide();
+    });
   }
 }
 
@@ -98,6 +106,31 @@ async function refreshApps(): Promise<DesktopApp[]> {
   return appsCache;
 }
 
+function shouldStartHidden(): boolean {
+  return process.argv.includes(START_HIDDEN_ARG);
+}
+
+function getLoginItemArgs(): string[] {
+  return process.defaultApp ? [app.getAppPath(), START_HIDDEN_ARG] : [START_HIDDEN_ARG];
+}
+
+function getStartupEnabled(): boolean {
+  return app.getLoginItemSettings({
+    path: process.execPath,
+    args: getLoginItemArgs()
+  }).openAtLogin;
+}
+
+function setStartupEnabled(enabled: boolean): boolean {
+  app.setLoginItemSettings({
+    openAtLogin: enabled,
+    path: process.execPath,
+    args: getLoginItemArgs()
+  });
+
+  return getStartupEnabled();
+}
+
 function registerIpc(): void {
   ipcMain.handle("apps:list", async () => appsCache);
 
@@ -142,6 +175,10 @@ function registerIpc(): void {
 
     return { ok: true, apps: await refreshApps() };
   });
+
+  ipcMain.handle("startup:get", async () => getStartupEnabled());
+
+  ipcMain.handle("startup:set", async (_event, enabled: boolean) => setStartupEnabled(enabled));
 
   ipcMain.handle("apps:open", async (_event, appId: string) => {
     const desktopApp = appsCache.find((item) => item.id === appId);
