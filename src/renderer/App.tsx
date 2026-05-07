@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Eraser, ExternalLink, FolderPlus, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Eraser, ExternalLink, FolderPlus, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { createRoot } from "react-dom/client";
 import type { DesktopApp } from "../shared/types";
 import "./styles.css";
@@ -14,6 +14,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [addingFolder, setAddingFolder] = useState(false);
   const [startupEnabled, setStartupEnabled] = useState(false);
   const [startupSaving, setStartupSaving] = useState(false);
 
@@ -63,6 +64,17 @@ function App() {
       setErrors({});
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function addFolder() {
+    setAddingFolder(true);
+    try {
+      const nextApps = await window.launcher.addFolder();
+      syncApps(nextApps);
+      setErrors({});
+    } finally {
+      setAddingFolder(false);
     }
   }
 
@@ -164,8 +176,12 @@ function App() {
             <span>开机自启动</span>
           </label>
           <button className="secondaryButton" type="button" onClick={addApp} disabled={adding}>
-            <FolderPlus size={18} />
+            <Plus size={18} />
             {adding ? "选择中" : "添加应用"}
+          </button>
+          <button className="secondaryButton" type="button" onClick={addFolder} disabled={addingFolder}>
+            <FolderPlus size={18} />
+            {addingFolder ? "选择中" : "添加文件夹"}
           </button>
           <button className="primaryButton" type="button" onClick={refreshApps} disabled={refreshing}>
             <RefreshCw size={18} />

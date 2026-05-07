@@ -22,9 +22,24 @@ let isQuitting = false;
 let appsCache: DesktopApp[] = [];
 
 const START_HIDDEN_ARG = "--hidden";
+configureElectronStorage();
+
 const store = new ShortcutStore();
 const userAppStore = new UserAppStore();
 const globalShortcuts = new GlobalShortcutService();
+
+function configureElectronStorage(): void {
+  const appDataPath = app.getPath("appData");
+  const sessionDataPath = path.join(appDataPath, "EasyDesktop", "Session");
+  const cachePath = path.join(sessionDataPath, "Cache");
+
+  fs.mkdirSync(sessionDataPath, { recursive: true });
+  fs.mkdirSync(cachePath, { recursive: true });
+
+  app.setPath("sessionData", sessionDataPath);
+  app.commandLine.appendSwitch("disk-cache-dir", cachePath);
+  app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
+}
 
 function createApplicationMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [
@@ -36,6 +51,13 @@ function createApplicationMenu(): void {
           accelerator: "CmdOrCtrl+O",
           click: () => {
             void chooseAppsToAdd().then(sendAppsUpdated).catch(showAddAppError);
+          }
+        },
+        {
+          label: "添加文件夹",
+          accelerator: "CmdOrCtrl+Shift+O",
+          click: () => {
+            void chooseFoldersToAdd().then(sendAppsUpdated).catch(showAddFolderError);
           }
         },
         {
@@ -175,7 +197,7 @@ function createTray(): void {
     {
       label: "刷新应用列表",
       click: () => {
-        void refreshApps();
+        void refreshApps().then(sendAppsUpdated);
       }
     },
     { type: "separator" },
@@ -219,12 +241,14 @@ function getStartupEnabled(): boolean {
 function getAddDialogDefaultPath(): string | undefined {
   const home = app.getPath("home");
   const root = path.parse(home).root;
+  const programData = getEnvValue("ProgramData");
+  const appData = getEnvValue("APPDATA");
   const candidates = [
-    process.env.ProgramData
-      ? path.join(process.env.ProgramData, "Microsoft", "Windows", "Start Menu", "Programs")
+    programData
+      ? path.join(programData, "Microsoft", "Windows", "Start Menu", "Programs")
       : path.join(root, "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
-    process.env.APPDATA
-      ? path.join(process.env.APPDATA, "Microsoft", "Windows", "Start Menu", "Programs")
+    appData
+      ? path.join(appData, "Microsoft", "Windows", "Start Menu", "Programs")
       : undefined,
     app.getPath("desktop"),
     path.join(home, "Desktop")
@@ -233,16 +257,29 @@ function getAddDialogDefaultPath(): string | undefined {
   return candidates.find((item) => fs.existsSync(item));
 }
 
+function getEnvValue(name: string): string | undefined {
+  const key = Object.keys(process.env).find((item) => item.toLowerCase() === name.toLowerCase());
+  return key ? process.env[key] : undefined;
+}
+
 function sendAppsUpdated(apps: DesktopApp[]): void {
   mainWindow?.webContents.send("apps:updated", apps);
 }
 
 function showAddAppError(error: unknown): void {
-  const message = error instanceof Error ? error.message : "添加应用失败";
+  showSelectionError("添加应用失败", error);
+}
+
+function showAddFolderError(error: unknown): void {
+  showSelectionError("添加文件夹失败", error);
+}
+
+function showSelectionError(title: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : title;
   if (mainWindow) {
     void dialog.showMessageBox(mainWindow, {
       type: "error",
-      title: "添加应用失败",
+      title,
       message
     });
   }
@@ -250,15 +287,31 @@ function showAddAppError(error: unknown): void {
 
 async function chooseAppsToAdd(): Promise<DesktopApp[]> {
   const dialogOptions: Electron.OpenDialogOptions = {
-    title: "选择要添加的应用或文件夹",
+    title: "选择要添加的应用或文件",
     defaultPath: getAddDialogDefaultPath(),
     buttonLabel: "添加",
-    properties: ["openFile", "openDirectory", "multiSelections"],
+    properties: ["openFile", "multiSelections"],
     filters: [
-      { name: "可添加应用", extensions: ["exe", "lnk", "url", "appref-ms"] },
+      { name: "应用和快捷方式", extensions: ["exe", "lnk", "appref-ms"] },
       { name: "所有文件", extensions: ["*"] }
     ]
   };
+
+  return choosePathsToAdd(dialogOptions);
+}
+
+async function chooseFoldersToAdd(): Promise<DesktopApp[]> {
+  const dialogOptions: Electron.OpenDialogOptions = {
+    title: "选择要添加的文件夹",
+    defaultPath: app.getPath("desktop"),
+    buttonLabel: "添加文件夹",
+    properties: ["openDirectory", "multiSelections"]
+  };
+
+  return choosePathsToAdd(dialogOptions);
+}
+
+async function choosePathsToAdd(dialogOptions: Electron.OpenDialogOptions): Promise<DesktopApp[]> {
   const result = mainWindow
     ? await dialog.showOpenDialog(mainWindow, dialogOptions)
     : await dialog.showOpenDialog(dialogOptions);
@@ -292,6 +345,10 @@ function registerIpc(): void {
 
   ipcMain.handle("apps:add", async (): Promise<DesktopApp[]> => {
     return chooseAppsToAdd();
+  });
+
+  ipcMain.handle("folders:add", async (): Promise<DesktopApp[]> => {
+    return chooseFoldersToAdd();
   });
 
   ipcMain.handle("apps:remove", async (_event, appId: string): Promise<ShortcutResult> => {

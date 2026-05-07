@@ -25,6 +25,7 @@ export type LauncherApi = {
   listApps: () => Promise<DesktopApp[]>;
   refreshApps: () => Promise<DesktopApp[]>;
   addApp: () => Promise<DesktopApp[]>;
+  addFolder: () => Promise<DesktopApp[]>;
   removeApp: (appId: string) => Promise<ShortcutResult>;
   getStartupEnabled: () => Promise<boolean>;
   setStartupEnabled: (enabled: boolean) => Promise<boolean>;

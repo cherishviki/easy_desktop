@@ -5,6 +5,7 @@ const api: LauncherApi = {
   listApps: () => ipcRenderer.invoke("apps:list"),
   refreshApps: () => ipcRenderer.invoke("apps:refresh"),
   addApp: () => ipcRenderer.invoke("apps:add"),
+  addFolder: () => ipcRenderer.invoke("folders:add"),
   removeApp: (appId: string) => ipcRenderer.invoke("apps:remove", appId),
   getStartupEnabled: () => ipcRenderer.invoke("startup:get"),
   setStartupEnabled: (enabled: boolean) => ipcRenderer.invoke("startup:set", enabled),
