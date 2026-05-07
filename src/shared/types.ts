@@ -31,4 +31,5 @@ export type LauncherApi = {
   openApp: (appId: string) => Promise<void>;
   setShortcut: (update: ShortcutUpdate) => Promise<ShortcutResult>;
   clearShortcut: (appId: string) => Promise<ShortcutResult>;
+  onAppsUpdated: (callback: (apps: DesktopApp[]) => void) => () => void;
 };

@@ -8,6 +8,7 @@ import {
   shell,
   Tray
 } from "electron";
+import fs from "node:fs";
 import path from "node:path";
 import type { DesktopApp, ShortcutResult, ShortcutUpdate } from "../shared/types";
 import { createAppId, scanUserDesktop } from "./appScanner";
@@ -24,6 +25,100 @@ const START_HIDDEN_ARG = "--hidden";
 const store = new ShortcutStore();
 const userAppStore = new UserAppStore();
 const globalShortcuts = new GlobalShortcutService();
+
+function createApplicationMenu(): void {
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: "文件",
+      submenu: [
+        {
+          label: "添加应用",
+          accelerator: "CmdOrCtrl+O",
+          click: () => {
+            void chooseAppsToAdd().then(sendAppsUpdated).catch(showAddAppError);
+          }
+        },
+        {
+          label: "刷新应用列表",
+          accelerator: "F5",
+          click: () => {
+            void refreshApps().then(sendAppsUpdated);
+          }
+        },
+        { type: "separator" },
+        {
+          label: "退出",
+          accelerator: "Alt+F4",
+          click: () => {
+            isQuitting = true;
+            app.quit();
+          }
+        }
+      ]
+    },
+    {
+      label: "编辑",
+      submenu: [
+        { label: "撤销", role: "undo" },
+        { label: "重做", role: "redo" },
+        { type: "separator" },
+        { label: "剪切", role: "cut" },
+        { label: "复制", role: "copy" },
+        { label: "粘贴", role: "paste" },
+        { label: "全选", role: "selectAll" }
+      ]
+    },
+    {
+      label: "视图",
+      submenu: [
+        { label: "重新加载", role: "reload" },
+        { label: "强制重新加载", role: "forceReload" },
+        { label: "开发者工具", role: "toggleDevTools" },
+        { type: "separator" },
+        { label: "重置缩放", role: "resetZoom" },
+        { label: "放大", role: "zoomIn" },
+        { label: "缩小", role: "zoomOut" },
+        { type: "separator" },
+        { label: "全屏", role: "togglefullscreen" }
+      ]
+    },
+    {
+      label: "窗口",
+      submenu: [
+        { label: "最小化", role: "minimize" },
+        {
+          label: "显示窗口",
+          click: () => {
+            mainWindow?.show();
+            mainWindow?.focus();
+          }
+        }
+      ]
+    },
+    {
+      label: "帮助",
+      submenu: [
+        {
+          label: "关于 Easy Desktop",
+          click: () => {
+            if (!mainWindow) {
+              return;
+            }
+
+            void dialog.showMessageBox(mainWindow, {
+              type: "info",
+              title: "关于 Easy Desktop",
+              message: "Easy Desktop",
+              detail: "Windows 桌面应用启动器"
+            });
+          }
+        }
+      ]
+    }
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -121,6 +216,65 @@ function getStartupEnabled(): boolean {
   }).openAtLogin;
 }
 
+function getAddDialogDefaultPath(): string | undefined {
+  const home = app.getPath("home");
+  const root = path.parse(home).root;
+  const candidates = [
+    process.env.ProgramData
+      ? path.join(process.env.ProgramData, "Microsoft", "Windows", "Start Menu", "Programs")
+      : path.join(root, "ProgramData", "Microsoft", "Windows", "Start Menu", "Programs"),
+    process.env.APPDATA
+      ? path.join(process.env.APPDATA, "Microsoft", "Windows", "Start Menu", "Programs")
+      : undefined,
+    app.getPath("desktop"),
+    path.join(home, "Desktop")
+  ].filter((item): item is string => Boolean(item));
+
+  return candidates.find((item) => fs.existsSync(item));
+}
+
+function sendAppsUpdated(apps: DesktopApp[]): void {
+  mainWindow?.webContents.send("apps:updated", apps);
+}
+
+function showAddAppError(error: unknown): void {
+  const message = error instanceof Error ? error.message : "添加应用失败";
+  if (mainWindow) {
+    void dialog.showMessageBox(mainWindow, {
+      type: "error",
+      title: "添加应用失败",
+      message
+    });
+  }
+}
+
+async function chooseAppsToAdd(): Promise<DesktopApp[]> {
+  const dialogOptions: Electron.OpenDialogOptions = {
+    title: "选择要添加的应用或文件夹",
+    defaultPath: getAddDialogDefaultPath(),
+    buttonLabel: "添加",
+    properties: ["openFile", "openDirectory", "multiSelections"],
+    filters: [
+      { name: "可添加应用", extensions: ["exe", "lnk", "url", "appref-ms"] },
+      { name: "所有文件", extensions: ["*"] }
+    ]
+  };
+  const result = mainWindow
+    ? await dialog.showOpenDialog(mainWindow, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return appsCache;
+  }
+
+  for (const selectedPath of result.filePaths) {
+    await userAppStore.addCustomPath(selectedPath);
+    await userAppStore.unhideApp(createAppId(selectedPath));
+  }
+
+  return refreshApps();
+}
+
 function setStartupEnabled(enabled: boolean): boolean {
   app.setLoginItemSettings({
     openAtLogin: enabled,
@@ -137,27 +291,7 @@ function registerIpc(): void {
   ipcMain.handle("apps:refresh", async () => refreshApps());
 
   ipcMain.handle("apps:add", async (): Promise<DesktopApp[]> => {
-    const dialogOptions: Electron.OpenDialogOptions = {
-      title: "选择要添加的应用或文件夹",
-      buttonLabel: "添加",
-      properties: ["openFile", "openDirectory"],
-      filters: [
-        { name: "应用和快捷方式", extensions: ["exe", "lnk"] },
-        { name: "所有文件", extensions: ["*"] }
-      ]
-    };
-    const result = mainWindow
-      ? await dialog.showOpenDialog(mainWindow, dialogOptions)
-      : await dialog.showOpenDialog(dialogOptions);
-
-    if (result.canceled || result.filePaths.length === 0) {
-      return appsCache;
-    }
-
-    const selectedPath = result.filePaths[0];
-    await userAppStore.addCustomPath(selectedPath);
-    await userAppStore.unhideApp(createAppId(selectedPath));
-    return refreshApps();
+    return chooseAppsToAdd();
   });
 
   ipcMain.handle("apps:remove", async (_event, appId: string): Promise<ShortcutResult> => {
@@ -223,6 +357,7 @@ app.whenReady().then(async () => {
   userAppStore.load();
   registerIpc();
   await refreshApps();
+  createApplicationMenu();
   createWindow();
   createTray();
   globalShortcuts.start();

@@ -19,6 +19,11 @@ function App() {
 
   useEffect(() => {
     void loadInitialState();
+
+    return window.launcher.onAppsUpdated((nextApps) => {
+      syncApps(nextApps);
+      setErrors({});
+    });
   }, []);
 
   const configuredCount = useMemo(
@@ -52,10 +57,13 @@ function App() {
 
   async function addApp() {
     setAdding(true);
-    const nextApps = await window.launcher.addApp();
-    syncApps(nextApps);
-    setErrors({});
-    setAdding(false);
+    try {
+      const nextApps = await window.launcher.addApp();
+      syncApps(nextApps);
+      setErrors({});
+    } finally {
+      setAdding(false);
+    }
   }
 
   async function toggleStartup(enabled: boolean) {

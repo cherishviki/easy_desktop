@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { LauncherApi, ShortcutUpdate } from "../shared/types";
+import type { DesktopApp, LauncherApi, ShortcutUpdate } from "../shared/types";
 
 const api: LauncherApi = {
   listApps: () => ipcRenderer.invoke("apps:list"),
@@ -10,7 +10,16 @@ const api: LauncherApi = {
   setStartupEnabled: (enabled: boolean) => ipcRenderer.invoke("startup:set", enabled),
   openApp: (appId: string) => ipcRenderer.invoke("apps:open", appId),
   setShortcut: (update: ShortcutUpdate) => ipcRenderer.invoke("shortcuts:set", update),
-  clearShortcut: (appId: string) => ipcRenderer.invoke("shortcuts:clear", appId)
+  clearShortcut: (appId: string) => ipcRenderer.invoke("shortcuts:clear", appId),
+  onAppsUpdated: (callback: (apps: DesktopApp[]) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, apps: DesktopApp[]) => {
+      callback(apps);
+    };
+    ipcRenderer.on("apps:updated", listener);
+    return () => {
+      ipcRenderer.removeListener("apps:updated", listener);
+    };
+  }
 };
 
 contextBridge.exposeInMainWorld("launcher", api);
