@@ -13,7 +13,7 @@
     "dist:win": "npm run build && electron-builder --win nsis portable",
     "dist:portable": "npm run build && electron-builder --win --config.win.target=portable",
     "dist:folder": "npm run build && electron-builder --win --dir",
-    "dist:zip": "npm run dist:folder && powershell -NoProfile -ExecutionPolicy Bypass -Command \"Compress-Archive -Path 'release/win-unpacked/*' -DestinationPath 'release/Easy Desktop-' + (Get-Content package.json | ConvertFrom-Json).version + '-win-x64.zip' -Force\"",
+    "dist:zip": "npm run dist:folder && powershell -NoProfile -ExecutionPolicy Bypass -Command \"Compress-Archive -Path 'release/win-unpacked/*' -DestinationPath ('release/Easy Desktop-' + $env:npm_package_version + '-win-x64.zip') -Force\"",
     "start": "npm run build && electron .",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.main.json"
   },
@@ -27,7 +27,7 @@
       "dist/**/*",
       "package.json"
     ],
-    "asar": true,
+    "asar": false,
     "npmRebuild": false,
     "win": {
       "signAndEditExecutable": false,
@@ -57,8 +57,7 @@
     },
     "portable": {
       "artifactName": "${productName}-${version}-Portable-${arch}.${ext}"
-    },
-    "afterPack": "./scripts/afterPack.js"
+    }
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

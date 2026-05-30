@@ -1,4 +1,4 @@
-﻿import {
+import {
   app,
   BrowserWindow,
   dialog,
@@ -20,7 +20,6 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let appsCache: DesktopApp[] = [];
-let windowBounds: { x?: number; y?: number; width: number; height: number } = { width: 980, height: 680 };
 
 const START_HIDDEN_ARG = "--hidden";
 configureElectronStorage();
@@ -40,8 +39,6 @@ function configureElectronStorage(): void {
   app.setPath("sessionData", sessionDataPath);
   app.commandLine.appendSwitch("disk-cache-dir", cachePath);
   app.commandLine.appendSwitch("disable-gpu-shader-disk-cache");
-  app.commandLine.appendSwitch("disable-gpu");
-  app.commandLine.appendSwitch("disable-software-rasterizer");
 }
 
 function createApplicationMenu(): void {
@@ -101,7 +98,8 @@ function createApplicationMenu(): void {
         {
           label: "显示窗口",
           click: () => {
-            showOrCreateWindow();
+            mainWindow?.show();
+            mainWindow?.focus();
           }
         }
       ]
@@ -131,17 +129,6 @@ function createApplicationMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-function showOrCreateWindow(): void {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.show();
-    mainWindow.focus();
-    return;
-  }
-  createWindow();
-  mainWindow?.show();
-  mainWindow?.focus();
-}
-
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 980,
@@ -160,12 +147,8 @@ function createWindow(): void {
 
   mainWindow.on("close", (event) => {
     if (!isQuitting) {
-      const bounds = mainWindow?.getBounds();
-      if (bounds) {
-        windowBounds = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
-      }
-      mainWindow?.destroy();
-      mainWindow = null;
+      event.preventDefault();
+      mainWindow?.hide();
     }
   });
 
@@ -194,7 +177,8 @@ function createTray(): void {
     {
       label: "显示窗口",
       click: () => {
-        showOrCreateWindow();
+        mainWindow?.show();
+        mainWindow?.focus();
       }
     },
     {
@@ -214,7 +198,8 @@ function createTray(): void {
   ]));
 
   tray.on("double-click", () => {
-    showOrCreateWindow();
+    mainWindow?.show();
+    mainWindow?.focus();
   });
 }
 
